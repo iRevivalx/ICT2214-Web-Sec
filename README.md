@@ -38,8 +38,60 @@ The model is trained on a dataset containing vulnerable and non-vulnerable C++, 
 - F1-score: 96.43%
 
 ## Details of the Model (Python)
+### Deep Learning Model
+- A 1D CNN-based classifier to analyze Python code snippets
+- Uses word embeddings and convolutional layers to detect patterns in vulnerable code
+- Handles binary classification (Vulnerable vs. Non-Vulnerable Code)
+- Requires Function by Function Submission
+
+### Data Preprocessing
+- Split of safe & vulnerable code
+- Tokenization of Python code
+- Padding to ensure equal-length sequences (300)
+- Label encoding for target values (1 or 0)
+
+### Dataset Processing & Filtering
+- Removal of Python comments
+- Balances dataset by including both vulnerable and non-vulnerable code
+
+### Evaluation & Metrics
+- Computes accuracy, precision, recall, and F1-score
+- Generates training and validation accuracy plots
+- Saves trained model for deployment
+
+### Results
+- Accuracy: %
+- Precision: %
+- Recall: %
+- F1-score: %
 
 ## Details of the Model (PHP)
+### Deep Learning Model
+- A 1D CNN-based classifier to analyze PHP code snippets
+- Uses word embeddings and convolutional layers to detect patterns in vulnerable code
+- Handles binary classification (Vulnerable vs. Non-Vulnerable Code)
+- Requires Function by Function Submission
+
+### Data Preprocessing
+- Split of safe & vulnerable code
+- Tokenization of PHP code
+- Padding to ensure equal-length sequences (300)
+- Label encoding for target values (1 or 0)
+
+### Dataset Processing & Filtering
+- Removal of PHP comments & opening braces
+- Balances dataset by including both vulnerable and non-vulnerable code
+
+### Evaluation & Metrics
+- Computes accuracy, precision, recall, and F1-score
+- Generates training and validation accuracy plots
+- Saves trained model for deployment
+
+### Results
+- Accuracy: %
+- Precision: %
+- Recall: %
+- F1-score: %
 
 
 ## Submission Deadline
