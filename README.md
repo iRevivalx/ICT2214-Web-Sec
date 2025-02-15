@@ -8,9 +8,9 @@ This project aims to develop a machine learning-powered web security scanner for
 
 We use a Convolutional Neural Network (CNN) to detect unsafe coding practices from code snippets.
 If the CNN predicts vulnerabilities with low confidence, a Large Language Model (LLM) will validate and confirm the findings.
-The model is trained on a dataset containing vulnerable and non-vulnerable C++ code.
+The model is trained on a dataset containing vulnerable and non-vulnerable C++, Python and PHP code.
 
-## Features of the Model (C++)
+## Details of the Model (C++)
 ### Deep Learning Model
 - A 1D CNN-based classifier to analyze C++ code snippets
 - Uses word embeddings and convolutional layers to detect patterns in vulnerable code
@@ -37,9 +37,9 @@ The model is trained on a dataset containing vulnerable and non-vulnerable C++ c
 - Recall: 97.61%
 - F1-score: 96.43%
 
-## Features of the Model (Python)
+## Details of the Model (Python)
 
-## Features of the Model (PHP)
+## Details of the Model (PHP)
 
 
 ## Submission Deadline
