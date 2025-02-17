@@ -262,20 +262,31 @@ def extract_code_from_file(file_path):
         raise ValueError("Unsupported file format. Only .py, .php, and .c files are supported.")
 
 
-def populate_chunk_confidence_yhat(group_chunks,predictions,probabilities,model,filepath):
+def populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten):
 
-    chunk_confidence_yhat = {}
-    #populate the chunk_confidence_yhat
-    for i, chunk in enumerate(group_chunks):
-        #print(f"Chunk {i+1}:")
-        # Get the predicted class (index of maximum probability)
-        predicted_class = predictions[i].item()
-        #print("Predicted class:", predicted_class)
-        # Get the prob of predicted class
-        confidence =  probabilities[i, predicted_class].item()  
-        #print("Confidence:", confidence)
-        #store to dict to pass to LLM to decide whether to investigate further
-        chunk_confidence_yhat[i] = {"chunk": chunk, "yhat": predicted_class, "confidence": confidence, "model": filepath}
+    if flatten:
+        #populate the chunk_confidence_yhat
+        for i, chunk in enumerate(group_chunks):
+            #print(f"Chunk {i+1}:")
+            # Get the predicted class (index of maximum probability)
+            predicted_class = predictions[i].item()
+            #print("Predicted class:", predicted_class)
+            confidence = probabilities[i].item()
+            #print("Confidence:", confidence)
+            chunk_confidence_yhat.append({"chunk": chunk, "chunk_id" : i, "yhat": predicted_class, "confidence": confidence, "model": filepath})
+            
+    else:
+        #populate the chunk_confidence_yhat
+        for i, chunk in enumerate(group_chunks):
+            #print(f"Chunk {i+1}:")
+            # Get the predicted class (index of maximum probability)
+            predicted_class = predictions[i].item()
+            #print("Predicted class:", predicted_class)
+            # Get the prob of predicted class
+            confidence =  probabilities[i, predicted_class].item()  
+            #print("Confidence:", confidence)
+            #store to dict to pass to LLM to decide whether to investigate further
+            chunk_confidence_yhat.append({"chunk": chunk, "chunk_id" : i, "yhat": predicted_class, "confidence": confidence, "model": filepath})
 
     return chunk_confidence_yhat
 
@@ -285,7 +296,7 @@ def python_vul_detector(file_to_check):
     #start of everything here 
     print("Start detecting vulnerable statement in python")
     #this is to store the vulnerable statement after all the detection 
-    chunk_confidence_yhat = {}
+    chunk_confidence_yhat = []
     group_functions = []
     
 
@@ -299,8 +310,8 @@ def python_vul_detector(file_to_check):
 
     #models that have the capabilites to detect python code ; shld include the file path of the pretrained model
     #edit this part to include more models
-    #models =["xformerBERT_python_model.pth" , "cnn_python_model.h5"]
-    models =["xformerBERT_python_model.pth" ]
+    models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
+    #models =["xformerBERT_python_model.pth" ]
     #loop thru the model 
     for filepath in models:
         model,tokenizer = load_model(filepath)
@@ -328,22 +339,31 @@ def python_vul_detector(file_to_check):
             #print("Predictions:", predictions)
 
             #populate chunk_confidence_yhat
-            chunk_confidence_yhat = populate_chunk_confidence_yhat(group_chunks,predictions,probabilities,model,filepath)
+            chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
         else:
             #this is a tensor model 
-            print(model.summary())
+            #print(model.summary())
             user_code = pd.Series(group_chunks)
 
             # Vectorize the input
             vectorizer = TextVectorization(max_tokens=20000, output_sequence_length=100, output_mode='int')
             vectorizer.adapt(user_code)
             X = vectorizer(user_code)
-            #change X to float32 type ?????
-            X_padded = pad_sequences(X, maxlen=300)
+            #some padding
+            X = pad_sequences(X, maxlen=300)
 
             # Make predictions on the test data
-            y_pred = model.predict(X_padded)
-            print(y_pred)
+            y_pred = model.predict(X)
+            #print(y_pred)
+            # TODO: Finetune to prediction threshold
+            y_pred_classes = (y_pred > 0.5).astype("int32")
+            #print(y_pred_classes)
+
+            """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
+            print('Predicted_Class', y_pred_classes.flatten())             # predicted class """
+
+            #populate chunk_confidence_yhat
+            chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,y_pred_classes.flatten(),y_pred.flatten(),model,filepath,flatten=True)
 
 
     #at the end will return just list of tuples information like the score n stuff ??
@@ -353,7 +373,7 @@ def php_vul_detector(file_to_check):
     #start of everything here 
     print("Start detecting vulnerable statement in php")
     #this is to store the vulnerable statement after all the detection 
-    chunk_confidence_yhat = {}
+    chunk_confidence_yhat = []
     group_functions = []
 
     #extract the code from file 
@@ -375,7 +395,7 @@ def c_vul_detector(file_to_check):
     #start of everything here 
     print("Start detecting vulnerable statement in c")
     #this is to store the vulnerable statement after all the detection 
-    chunk_confidence_yhat = {}
+    chunk_confidence_yhat = []
     group_chunks = extract_code_from_file(file_to_check)
 
     for i, func in enumerate(group_chunks, 1):
@@ -404,7 +424,12 @@ def main():
         elif args.type == "python" and args.file.endswith(".py"):
             print(f"Submitting Python code from file: {args.file}")
             chunk_confidence_yhat = python_vul_detector(args.file)
-            pprint(chunk_confidence_yhat, sort_dicts=False)
+            for chunk_data in chunk_confidence_yhat:
+                print(f"Chunk ID: {chunk_data['chunk_id']}")
+                print(f"Predicted Class (yhat): {chunk_data['yhat']}")
+                print(f"Confidence: {chunk_data['confidence']}")
+                print(f"Model: {chunk_data['model']}")
+                print("-----")
 
         elif args.type == "php" and (args.file.endswith(".php") or args.file.endswith(".html")):
 
