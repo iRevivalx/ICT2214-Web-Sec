@@ -5,10 +5,12 @@ import pandas as pd
 from pprint import pprint
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import tensorflow as tf
+import numpy as np
 import torch
 from transformers import RobertaForSequenceClassification , AutoTokenizer 
 from tensorflow.keras.layers import TextVectorization
 from keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.text import Tokenizer
 
 def tokenize_data(code, tokenizer):
 
@@ -333,10 +335,10 @@ def python_vul_detector(file_to_check):
             logits = outputs.logits
             probabilities = torch.sigmoid(logits)
             #print("Probabilities:", probabilities)
-            
-            # Get the predicted class (index of maximum probability)
-            predictions = torch.argmax(probabilities, dim=-1)
+            # Predicted class (0 or 1) by thresholding at 0.5
+            #predictions = (probabilities > 0.5).long()
             #print("Predictions:", predictions)
+            predictions = torch.argmax(probabilities, dim=1)
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -385,6 +387,60 @@ def php_vul_detector(file_to_check):
 
 
     #models here load
+    models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
+    #models = ["xformerBERT_php_model.pth"]
+    for filepath in models:
+        model,tokenizer = load_model(filepath)
+        print("Loaded model: ", filepath) 
+        
+        #check if the tokenizer is not NUll
+        #that means is xfer model cause i didnt load the tokenizer in the cnn model must load manual here 
+        #tokenizer =  what tokenizer u used
+        #this is a torch model
+        if tokenizer is not None:
+            #convert the group chunk list to pd series object 
+            user_code = pd.Series(group_chunks)
+            #put user code into tokenizer
+            user_code_ids, user_code_mask = tokenize_data(user_code, tokenizer)
+            #pass tokenize code to model and get y hat
+            outputs = model(input_ids=user_code_ids, attention_mask=user_code_mask)
+            
+            # Apply sigmoid to logits to get probabilities
+            logits = outputs.logits
+            probabilities = torch.sigmoid(logits)
+            #print("Probabilities:", probabilities)
+            # Predicted class (0 or 1) by thresholding at 0.5
+            #predictions = (probabilities > 0.5).long()
+            #print("Predictions:", predictions)
+            predictions = torch.argmax(probabilities, dim=1)
+
+            #populate chunk_confidence_yhat
+            chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
+        else:
+            #this is a tensor model 
+            #print(model.summary())
+            user_code = pd.Series(group_chunks)
+
+            # Vectorize the input
+            vectorizer = TextVectorization(max_tokens=20000, output_sequence_length=100, output_mode='int')
+            vectorizer.adapt(user_code)
+            X = vectorizer(user_code)
+            #some padding
+            X = pad_sequences(X, maxlen=300)
+
+            # Make predictions on the test data
+            y_pred = model.predict(X)
+            #print(y_pred)
+            # TODO: Finetune to prediction threshold
+            y_pred_classes = (y_pred > 0.5).astype("int32")
+            #print(y_pred_classes)
+
+            """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
+            print('Predicted_Class', y_pred_classes.flatten())             # predicted class """
+
+            #populate chunk_confidence_yhat
+            chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,y_pred_classes.flatten(),y_pred.flatten(),model,filepath,flatten=True)
+
 
 
     return chunk_confidence_yhat
@@ -400,6 +456,36 @@ def c_vul_detector(file_to_check):
 
     for i, func in enumerate(group_chunks, 1):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
+
+    models = ["cnn_c++_model.h5"]
+    for filepath in models:
+        model,tokenizer = load_model(filepath)
+
+        if tokenizer is None:
+            #this is tensor model
+            user_code = pd.Series(group_chunks)
+            # Initialize the tokenizer
+            tokenizer = Tokenizer(num_words=20000, oov_token="")
+            tokenizer.fit_on_texts(user_code)
+            # Tokenize and pad sequences
+            X_tokenized = tokenizer.texts_to_sequences(user_code)
+            X = pad_sequences(X_tokenized, maxlen=300, padding="post", truncating="post")
+
+            # Make predictions on the test data
+            print(model.summary())
+            y_pred = model.predict(X)
+            print(y_pred)
+            # TODO: Finetune to prediction threshold
+            y_pred_classes = np.argmax(y_pred, axis=1)  # Convert probabilities to class labels
+            print(y_pred_classes)
+
+            print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
+            print('Predicted_Class', y_pred_classes)             # predicted class
+
+            #populate chunk_confidence_yhat
+            #chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,y_pred_classes.flatten(),y_pred.flatten(),model,filepath,flatten=True)
+
+
 
     return  chunk_confidence_yhat
 
@@ -424,12 +510,6 @@ def main():
         elif args.type == "python" and args.file.endswith(".py"):
             print(f"Submitting Python code from file: {args.file}")
             chunk_confidence_yhat = python_vul_detector(args.file)
-            for chunk_data in chunk_confidence_yhat:
-                print(f"Chunk ID: {chunk_data['chunk_id']}")
-                print(f"Predicted Class (yhat): {chunk_data['yhat']}")
-                print(f"Confidence: {chunk_data['confidence']}")
-                print(f"Model: {chunk_data['model']}")
-                print("-----")
 
         elif args.type == "php" and (args.file.endswith(".php") or args.file.endswith(".html")):
 
@@ -438,6 +518,14 @@ def main():
 
         else:
             print("Contradicting file type. Please provide a valid file.")
+
+        if chunk_confidence_yhat:
+            for chunk_data in chunk_confidence_yhat:
+                print(f"Chunk ID: {chunk_data['chunk_id']}")
+                print(f"Predicted Class (yhat): {chunk_data['yhat']}")
+                print(f"Confidence: {chunk_data['confidence']}")
+                print(f"Model: {chunk_data['model']}")
+                print("-----")
     else:
         print("Invalid usage. Use -help for more information.")
 
