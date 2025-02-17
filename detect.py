@@ -306,10 +306,15 @@ def python_vul_detector(file_to_check):
     cleaned_lines = extract_code_from_file(file_to_check)
     #print(cleaned_lines)
     group_chunks = group_python_functions(cleaned_lines)
+
+    if not group_chunks:
+        print("No functions found in the file. Exiting program.")
+        exit(1) 
+
     for i, func in enumerate(group_chunks, 1):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
     
-
+    
     #models that have the capabilites to detect python code ; shld include the file path of the pretrained model
     #edit this part to include more models
     models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
@@ -382,9 +387,12 @@ def php_vul_detector(file_to_check):
     cleaned_lines = extract_code_from_file(file_to_check)
     #print(cleaned_lines)
     group_chunks = group_php_lines(cleaned_lines)
+    if not group_chunks:
+        print("No functions found in the file. Exiting program.")
+        exit(1) 
+
     for i, func in enumerate(group_chunks, 1):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
-
 
     #models here load
     models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
@@ -453,13 +461,23 @@ def c_vul_detector(file_to_check):
     #this is to store the vulnerable statement after all the detection 
     chunk_confidence_yhat = []
     group_chunks = extract_code_from_file(file_to_check)
+    #print(group_chunks)
 
+    if not group_chunks:
+        print("No functions found in the file. Exiting program.")
+        exit(1) 
+
+    #print("Group chunks:" , group_chunks)
     for i, func in enumerate(group_chunks, 1):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
-    models = ["cnn_c++_model.h5"]
+
+    models = ["cnn_c++ (1).h5"]
     for filepath in models:
+        model = None
+        tokenizer = None
         model,tokenizer = load_model(filepath)
+        print("Loaded model: ", filepath) 
 
         if tokenizer is None:
             #this is tensor model
@@ -472,18 +490,20 @@ def c_vul_detector(file_to_check):
             X = pad_sequences(X_tokenized, maxlen=300, padding="post", truncating="post")
 
             # Make predictions on the test data
-            print(model.summary())
+            #print(model.summary())
+            
             y_pred = model.predict(X)
-            print(y_pred)
-            # TODO: Finetune to prediction threshold
-            y_pred_classes = np.argmax(y_pred, axis=1)  # Convert probabilities to class labels
-            print(y_pred_classes)
 
-            print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
-            print('Predicted_Class', y_pred_classes)             # predicted class
+            
+            # Get model predictions
+            y_pred = model.predict(X)
+            # TODO: Finetune to prediction threshold
+            y_pred_classes = (y_pred > 0.5).astype(int)  # Convert probabilities to class labels
+            #print('Predicted_Probability', y_pred)               # Tis is my probability
+            #print('Predicted_Class', y_pred_classes)             # predicted class
 
             #populate chunk_confidence_yhat
-            #chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,y_pred_classes.flatten(),y_pred.flatten(),model,filepath,flatten=True)
+            chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,y_pred_classes.flatten(),y_pred.flatten(),model,filepath,flatten=True)
 
 
 
