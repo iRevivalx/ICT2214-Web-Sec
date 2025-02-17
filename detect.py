@@ -266,6 +266,7 @@ def extract_code_from_file(file_path):
 
 def populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten):
 
+    #test github push
     if flatten:
         #populate the chunk_confidence_yhat
         for i, chunk in enumerate(group_chunks):
