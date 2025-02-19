@@ -273,8 +273,10 @@ def populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,prediction
             #print(f"Chunk {i+1}:")
             # Get the predicted class (index of maximum probability)
             predicted_class = predictions[i].item()
-            #print("Predicted class:", predicted_class)
-            confidence = probabilities[i].item()
+            if predicted_class == 1:
+                confidence = probabilities[i].item()
+            else:
+                confidence = 1 - probabilities[i].item()
             #print("Confidence:", confidence)
             chunk_confidence_yhat.append({"chunk": chunk, "chunk_id" : i, "yhat": predicted_class, "confidence": confidence, "model": filepath})
             
@@ -306,7 +308,9 @@ def python_vul_detector(file_to_check):
     #extract the code from file 
     cleaned_lines = extract_code_from_file(file_to_check)
     #print(cleaned_lines)
+    #print(cleaned_lines)
     group_chunks = group_python_functions(cleaned_lines)
+    #print(group_chunks)
 
     if not group_chunks:
         print("No functions found in the file. Exiting program.")
@@ -464,6 +468,7 @@ def c_vul_detector(file_to_check):
     group_chunks = extract_code_from_file(file_to_check)
     #print(group_chunks)
 
+    print("Group chunks type :" , type(group_chunks))
     if not group_chunks:
         print("No functions found in the file. Exiting program.")
         exit(1) 
@@ -473,7 +478,7 @@ def c_vul_detector(file_to_check):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
 
-    models = ["cnn_c++ (1).h5"]
+    models = ["cnn_c++.h5"]
     for filepath in models:
         model = None
         tokenizer = None
@@ -494,12 +499,14 @@ def c_vul_detector(file_to_check):
             #print(model.summary())
             
             y_pred = model.predict(X)
+            #print(y_pred)
 
             
             # Get model predictions
             y_pred = model.predict(X)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype(int)  # Convert probabilities to class labels
+            y_pred_classes = (y_pred > 0.015).astype(int)  # Convert probabilities to class labels
+            #print(y_pred_classes)
             #print('Predicted_Probability', y_pred)               # Tis is my probability
             #print('Predicted_Class', y_pred_classes)             # predicted class
 
