@@ -11,6 +11,11 @@ from transformers import RobertaForSequenceClassification , AutoTokenizer
 from tensorflow.keras.layers import TextVectorization
 from keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
+from openai import OpenAI
+
+client = OpenAI(
+    api_key = os.environ.get("OPENAI_API_KEY"),
+)
 
 def tokenize_data(code, tokenizer):
 
@@ -517,6 +522,51 @@ def c_vul_detector(file_to_check):
 
     return  chunk_confidence_yhat
 
+def send_to_llm(code_chunk):
+    full_prompt = f"""
+
+    You are a security expert analyzing code for vulnerabilities. 
+
+    Analyze the following code and determine if it is secure. If it is insecure:
+    1. **Highlight the exact vulnerable line(s)** by enclosing them in triple backticks (```) for easy extraction.
+    2. **Provide a clear explanation** of why the highlighted code is vulnerable.
+    3. **Suggest a remediated version of the code**, formatted in a separate code block.
+    4. **Explain the changes** made in the remediation.
+
+    ```python
+    {code_chunk}
+    ```
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="ft:gpt-4o-mini-2024-07-18:websec::B1W99cp2",
+            messages=[{"role": "user", "content": full_prompt}]
+        )
+
+        # Extract and return response from GPT-4o
+        return response.choices[0].message.content
+
+    except client.error.OpenAIError as e:
+        return f"Error: {str(e)}"
+
+
+def process_results(chunk_confidence_yhat):
+
+    final_results = []
+
+    for chunk_data in chunk_confidence_yhat:
+
+        # If confidence is too low, send it to LLM for further analysis
+        if chunk_data["confidence"] < 0.7:
+            print(f"Sending Chunk {chunk_data['chunk_id']} to LLM (Flagged by {chunk_data['model']})...")
+            llm_result = send_to_llm(chunk_data["chunk"])
+            chunk_data["llm_analysis"] = llm_result  # Store LLM result
+            final_results.append(chunk_data)
+
+    return final_results if final_results else None
+
+
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--type", choices=["cpp", "python", "php"])
@@ -548,11 +598,24 @@ def main():
             print("Contradicting file type. Please provide a valid file.")
 
         if chunk_confidence_yhat:
+            
             for chunk_data in chunk_confidence_yhat:
                 print(f"Chunk ID: {chunk_data['chunk_id']}")
                 print(f"Predicted Class (yhat): {chunk_data['yhat']}")
                 print(f"Confidence: {chunk_data['confidence']}")
                 print(f"Model: {chunk_data['model']}")
+                print("-----")
+            
+            # send low-confidence results to the LLM
+            print("\nProcessing low-confidence predictions with LLM...")
+            final_results = process_results(chunk_confidence_yhat)
+
+            # print LLM results
+            print("\nLLM Analysis Results")
+            for chunk_data in final_results:
+                print(f"\nChunk ID: {chunk_data['chunk_id']}")
+                print(f"Flagged by: {chunk_data['model']}")  # Print which model flagged it
+                print(f"LLM Analysis: {chunk_data['llm_analysis']}")
                 print("-----")
     else:
         print("Invalid usage. Use -help for more information.")
