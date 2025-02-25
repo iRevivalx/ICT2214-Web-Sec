@@ -19,7 +19,7 @@ The model is trained on a dataset containing vulnerable and non-vulnerable C++, 
 ### Data Preprocessing
 - Tokenization of C++ code
 - Padding to ensure equal-length sequences
-- Label encoding for target values
+- Label encoding for target values (1 or 0)
 
 ### Dataset Processing & Filtering
 - Filters out invalid entries and ensures label consistency
