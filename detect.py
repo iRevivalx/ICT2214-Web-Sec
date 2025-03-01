@@ -522,45 +522,117 @@ def c_vul_detector(file_to_check):
 
     return  chunk_confidence_yhat
 
-def send_to_llm(code_chunk):
+# Define Fine-Tuned Model IDs (Replace with your actual model IDs)
+fine_tuned_models = {
+    "Python": "ft:gpt-4o-mini-2024-07-18:websec::B1W99cp2",
+    "PHP": "ft:gpt-4o-mini-2024-07-18:websec::B6BkXN2L",
+    "C++": "ft:gpt-4o-mini-2024-07-18:websec::B6B5B4Aw"
+}
+
+def send_to_llm(code_chunk, language):
+    """
+    Send flagged code to the correct fine-tuned LLM model based on language.
+    """
+    if language not in fine_tuned_models:
+        return f"Error: No fine-tuned model available for {language}."
+
+    model_id = fine_tuned_models[language]
+
     full_prompt = f"""
+    ### 🚀 Code Security Audit: {language}
 
-    You are a security expert analyzing code for vulnerabilities. 
+    **🔍 Your Task:**  
+    You are a cybersecurity expert specializing in {language} vulnerability detection.  
+    Your job is to **analyze the following code** and return a **detailed security assessment** including:  
+    - **Identify the exact vulnerable lines** in the format `line X: <code>`.  
+    - **Explain why each identified line is vulnerable** and how an attacker can exploit it.  
+    - **Provide a complete corrected version of the code.**  
+    - **Explain how the fix improves security and mitigates risks.**  
 
-    Analyze the following code and determine if it is secure. If it is insecure:
-    1. **Highlight the exact vulnerable line(s)** by enclosing them in triple backticks (```) for easy extraction.
-    2. **Provide a clear explanation** of why the highlighted code is vulnerable.
-    3. **Suggest a remediated version of the code**, formatted in a separate code block.
-    4. **Explain the changes** made in the remediation.
+    ---
+    **⚠️ Response Format (DO NOT DEVIATE):**
 
-    ```python
+    **🔍 Vulnerable Lines:**  
+    ```
+    line X: <code>
+    line Y: <code>
+    ```
+
+    **🛑 Explanation of Vulnerabilities:**  
+    - Explain why each identified line is vulnerable.
+    - Describe how an attacker could exploit this vulnerability.
+    - Provide real-world examples of security breaches caused by similar issues.
+
+    **✅ Secure Code Fix (FULL REWRITTEN VERSION):**  
+    ```{language.lower()}
+    // Corrected version of the code with secure coding practices
+    ```
+    
+    **🔄 Detailed Explanation of Fix:**  
+    - Clearly outline **what changes were made** to improve security.
+    - Explain **why each fix works** and how it mitigates the vulnerability.
+    - If applicable, compare the **old insecure code vs. the new secure version**.
+    - Discuss **alternative secure coding practices** that could also be used.
+    - Provide links to security guidelines (if relevant).
+
+    ---
+    **📝 Example Analysis (DO NOT COPY, FOLLOW FORMAT):**  
+
+    **Vulnerable Lines:**  
+    ```
+    line 10: echo $_GET["username"];
+    line 15: $password = $_POST["password"];
+    ```
+
+    **🛑 Explanation of Vulnerabilities:**  
+    - `echo $_GET["username"];` (line 10) allows **Cross-Site Scripting (XSS)** attacks if input is not properly escaped.  
+    - `$password = $_POST["password"];` (line 15) stores passwords **without hashing**, leading to **password leaks**.
+
+    **✅ Secure Code Fix:**  
+    ```php
+    // Secure XSS protection
+    echo htmlspecialchars($_GET["username"], ENT_QUOTES, 'UTF-8');
+
+    // Secure password storage with hashing
+    $password = password_hash($_POST["password"], PASSWORD_BCRYPT);
+    ```
+    
+    **🔄 Explanation of Fix:**  
+    - Used `htmlspecialchars()` to prevent **XSS attacks**.
+    - Applied `password_hash()` for **secure password storage** instead of storing plaintext passwords.
+
+    ---
+    **Now analyze the following PHP code and return a complete, corrected version:**  
+
+    ```php
     {code_chunk}
     ```
     """
 
     try:
         response = client.chat.completions.create(
-            model="ft:gpt-4o-mini-2024-07-18:websec::B1W99cp2",
+            model=model_id,
             messages=[{"role": "user", "content": full_prompt}]
         )
 
-        # Extract and return response from GPT-4o
         return response.choices[0].message.content
 
     except client.error.OpenAIError as e:
         return f"Error: {str(e)}"
 
 
-def process_results(chunk_confidence_yhat):
 
+def process_results(chunk_confidence_yhat, language):
+    """
+    Process flagged chunks and send them to the correct fine-tuned LLM.
+    """
     final_results = []
 
     for chunk_data in chunk_confidence_yhat:
-
         # If confidence is too low, send it to LLM for further analysis
         if chunk_data["confidence"] < 0.7:
-            print(f"Sending Chunk {chunk_data['chunk_id']} to LLM (Flagged by {chunk_data['model']})...")
-            llm_result = send_to_llm(chunk_data["chunk"])
+            print(f"Sending Chunk {chunk_data['chunk_id']} to {language} fine-tuned LLM (Flagged by {chunk_data['model']})...")
+            llm_result = send_to_llm(chunk_data["chunk"], language)
             chunk_data["llm_analysis"] = llm_result  # Store LLM result
             final_results.append(chunk_data)
 
@@ -580,6 +652,9 @@ def main():
     if args.help:
         print_banner()
     elif args.type and args.file:
+        language_map = {"cpp": "C++", "python": "Python", "php": "PHP"}
+        language = language_map.get(args.type)
+
         #check if the file match the type of the 
         if args.type == "cpp" and (args.file.endswith(".c") or args.file.endswith(".cpp")):
             print(f"Submitting C code from file: {args.file}")
@@ -606,9 +681,10 @@ def main():
                 print(f"Model: {chunk_data['model']}")
                 print("-----")
             
-            # send low-confidence results to the LLM
-            print("\nProcessing low-confidence predictions with LLM...")
-            final_results = process_results(chunk_confidence_yhat)
+            # Send low-confidence results to the correct LLM model
+            print(f"\nProcessing low-confidence predictions with {language} fine-tuned LLM...")
+            final_results = process_results(chunk_confidence_yhat, language)
+
 
             # print LLM results
             print("\nLLM Analysis Results")
