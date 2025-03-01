@@ -13,6 +13,7 @@ from keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 from openai import OpenAI
 
+
 client = OpenAI(
     api_key = os.environ.get("OPENAI_API_KEY"),
 )
@@ -531,7 +532,7 @@ fine_tuned_models = {
 
 def send_to_llm(code_chunk, language):
     """
-    Send flagged code to the correct fine-tuned LLM model based on language.
+    Send flagged code to the correct fine-tuned LLM model based on language, requesting HTML-formatted output.
     """
     if language not in fine_tuned_models:
         return f"Error: No fine-tuned model available for {language}."
@@ -539,72 +540,43 @@ def send_to_llm(code_chunk, language):
     model_id = fine_tuned_models[language]
 
     full_prompt = f"""
-    ### 🚀 Code Security Audit: {language}
+    ### Code Security Audit: {language}
 
-    **🔍 Your Task:**  
+    ** Your Task:**  
     You are a cybersecurity expert specializing in {language} vulnerability detection.  
-    Your job is to **analyze the following code** and return a **detailed security assessment** including:  
-    - **Identify the exact vulnerable lines** in the format `line X: <code>`.  
-    - **Explain why each identified line is vulnerable** and how an attacker can exploit it.  
-    - **Provide a complete corrected version of the code.**  
-    - **Explain how the fix improves security and mitigates risks.**  
+    Your job is to analyze the following code and return a **detailed security assessment** in **HTML format**.  
 
     ---
-    **⚠️ Response Format (DO NOT DEVIATE):**
+    ** Response Format (Strictly HTML)**:
 
-    **🔍 Vulnerable Lines:**  
+    ```html
+    <div class="report">
+        <h2>🔍 Vulnerability Analysis for {language} Code</h2>
+
+        <h3>Vulnerable Lines:</h3>
+        <pre><code>
+        line X: &lt;code&gt;
+        line Y: &lt;code&gt;
+        </code></pre>
+
+        <h3>🛑 Explanation of Vulnerabilities:</h3>
+        <p>Explain why each identified line is vulnerable.</p>
+        <p>Describe how an attacker could exploit this vulnerability.</p>
+
+        <h3>✅ Secure Code Fix:</h3>
+        <pre><code>{language.lower()}
+        // Corrected version of the code with secure coding practices
+        </code></pre>
+
+        <h3>🔄 Explanation of Fix:</h3>
+        <p>Clearly outline what changes were made and how the fix improves security.</p>
+    </div>
     ```
-    line X: <code>
-    line Y: <code>
-    ```
 
-    **🛑 Explanation of Vulnerabilities:**  
-    - Explain why each identified line is vulnerable.
-    - Describe how an attacker could exploit this vulnerability.
-    - Provide real-world examples of security breaches caused by similar issues.
+    ---
+    **Now analyze the following {language} code and return an HTML-formatted security assessment:**  
 
-    **✅ Secure Code Fix (FULL REWRITTEN VERSION):**  
     ```{language.lower()}
-    // Corrected version of the code with secure coding practices
-    ```
-    
-    **🔄 Detailed Explanation of Fix:**  
-    - Clearly outline **what changes were made** to improve security.
-    - Explain **why each fix works** and how it mitigates the vulnerability.
-    - If applicable, compare the **old insecure code vs. the new secure version**.
-    - Discuss **alternative secure coding practices** that could also be used.
-    - Provide links to security guidelines (if relevant).
-
-    ---
-    **📝 Example Analysis (DO NOT COPY, FOLLOW FORMAT):**  
-
-    **Vulnerable Lines:**  
-    ```
-    line 10: echo $_GET["username"];
-    line 15: $password = $_POST["password"];
-    ```
-
-    **🛑 Explanation of Vulnerabilities:**  
-    - `echo $_GET["username"];` (line 10) allows **Cross-Site Scripting (XSS)** attacks if input is not properly escaped.  
-    - `$password = $_POST["password"];` (line 15) stores passwords **without hashing**, leading to **password leaks**.
-
-    **✅ Secure Code Fix:**  
-    ```php
-    // Secure XSS protection
-    echo htmlspecialchars($_GET["username"], ENT_QUOTES, 'UTF-8');
-
-    // Secure password storage with hashing
-    $password = password_hash($_POST["password"], PASSWORD_BCRYPT);
-    ```
-    
-    **🔄 Explanation of Fix:**  
-    - Used `htmlspecialchars()` to prevent **XSS attacks**.
-    - Applied `password_hash()` for **secure password storage** instead of storing plaintext passwords.
-
-    ---
-    **Now analyze the following PHP code and return a complete, corrected version:**  
-
-    ```php
     {code_chunk}
     ```
     """
@@ -615,28 +587,83 @@ def send_to_llm(code_chunk, language):
             messages=[{"role": "user", "content": full_prompt}]
         )
 
-        return response.choices[0].message.content
+        return response.choices[0].message.content  # This will be the HTML output
 
     except client.error.OpenAIError as e:
         return f"Error: {str(e)}"
 
 
-
 def process_results(chunk_confidence_yhat, language):
     """
     Process flagged chunks and send them to the correct fine-tuned LLM.
+    Generates an HTML report.
     """
     final_results = []
+    html_output = "<html><body><h1>🚀 Code Security Report</h1>"
 
     for chunk_data in chunk_confidence_yhat:
-        # If confidence is too low, send it to LLM for further analysis
         if chunk_data["confidence"] < 0.7:
             print(f"Sending Chunk {chunk_data['chunk_id']} to {language} fine-tuned LLM (Flagged by {chunk_data['model']})...")
             llm_result = send_to_llm(chunk_data["chunk"], language)
             chunk_data["llm_analysis"] = llm_result  # Store LLM result
             final_results.append(chunk_data)
 
+            # Append LLM output (which is already in HTML format)
+            html_output += f"<h2>Chunk {chunk_data['chunk_id']} (Flagged by {chunk_data['model']})</h2>"
+            html_output += llm_result
+
+    html_output += "</body></html>"
+
+    # Save HTML report
+    html_filename = f"security_report_{language.lower()}.html"
+    with open(html_filename, "w", encoding="utf-8") as file:
+        file.write(html_output)
+
+    print(f"Security report saved as {html_filename}")
     return final_results if final_results else None
+
+
+def generate_html_report(report_data, filename="vulnerability_report.html"):
+    """
+    Generate an HTML report from the LLM analysis results.
+    """
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vulnerability Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; padding: 20px; }
+            .report { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; background-color: #f9f9f9; }
+            h2 { color: #d9534f; }
+            h3 { color: #5bc0de; }
+            pre { background: #222; color: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        </style>
+    </head>
+    <body>
+        <h1>🔍 Code Vulnerability Analysis Report</h1>
+    """
+
+    for item in report_data:
+        html_content += f"""
+        <div class="report">
+            <h2>Chunk ID: {item['chunk_id']} (Flagged by {item['model']})</h2>
+            {item['llm_html_analysis']}  <!-- GPT response in HTML format -->
+        </div>
+        """
+
+    html_content += """
+    </body>
+    </html>
+    """
+
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+    print(f"\n HTML Report Generated: {filename}")
+    return filename
 
 
 def main():
@@ -693,6 +720,19 @@ def main():
                 print(f"Flagged by: {chunk_data['model']}")  # Print which model flagged it
                 print(f"LLM Analysis: {chunk_data['llm_analysis']}")
                 print("-----")
+        
+        if final_results:
+            print("\nLLM Analysis Results")
+            for chunk_data in final_results:
+                print(f"\nChunk ID: {chunk_data['chunk_id']}")
+                print(f"Flagged by: {chunk_data['model']}")  # Print which model flagged it
+
+                # ✅ Use .get() to avoid KeyError
+                analysis = chunk_data.get("llm_analysis", "⚠ No analysis received from LLM.")
+                print(f"LLM Analysis: {analysis}")
+                print("-----")
+
+
     else:
         print("Invalid usage. Use -help for more information.")
 
