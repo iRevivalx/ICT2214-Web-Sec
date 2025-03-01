@@ -599,7 +599,7 @@ def process_results(chunk_confidence_yhat, language):
     Generates an HTML report.
     """
     final_results = []
-    html_output = "<html><body><h1>🚀 Code Security Report</h1>"
+    html_output = "<html><body><h1> Code Security Report</h1>"
 
     for chunk_data in chunk_confidence_yhat:
         if chunk_data["confidence"] < 0.7:
