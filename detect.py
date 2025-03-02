@@ -4,6 +4,8 @@ import re
 import pandas as pd
 from pprint import pprint
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["OPENAI_API_KEY"] = "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"
+print(os.getenv("OPENAI_API_KEY"))
 import tensorflow as tf
 import numpy as np
 import torch
@@ -240,30 +242,34 @@ def extract_code_from_file(file_path):
         functions = []
         current_function = []
         inside_function = False
-        brace_count = 0  # Track `{}` scope
+        brace_count = 0  
 
-        # Regular expression for function signatures (supports static, extern, etc.)
-        function_pattern = re.compile(r"^\s*(static|extern|inline)?\s*(\w+)\s+(\w+)\s*\(.*\)\s*\{?")
+        # Regex to match function signatures that explicitly start with "void"
+        function_pattern = re.compile(r"^\s*void\s+(\w+)\s*\(.*\)\s*\{?$")
+
         for line in lines:
-            if line:
-                line = line.strip()
-                if not line:  # Skip empty lines
-                    continue  
-                if function_pattern.match(line):  # Function start
-                    if current_function:  # Save the previous function before starting a new one
-                        functions.append("\n".join(current_function))
-                    current_function = [line]  # Start new function
-                    inside_function = True
-                    brace_count = line.count("{") - line.count("}")  # Count braces
+            stripped_line = line.rstrip()
 
-                elif inside_function:
-                    current_function.append(line)
-                    brace_count += line.count("{") - line.count("}")  # Adjust brace count
+            if function_pattern.match(stripped_line):  # Function start detected
+                if current_function:  # Save previous function before starting a new one
+                    functions.append("\n".join(current_function))
 
-                    if brace_count == 0:  # Function ends when braces are balanced
-                        inside_function = False
-                        functions.append("\n".join(current_function))
-                        current_function = []
+                current_function = [stripped_line]  
+                inside_function = True
+                brace_count = stripped_line.count("{") - stripped_line.count("}")  
+
+            elif inside_function:
+                current_function.append(stripped_line)
+                brace_count += stripped_line.count("{") - stripped_line.count("}")  
+
+                if brace_count == 0:  # Function ends when braces are balanced
+                    inside_function = False
+                    functions.append("\n".join(current_function))
+                    current_function = []
+
+        # Ensure the last function is added
+        if current_function:
+            functions.append("\n".join(current_function))
 
         return functions
     else:
@@ -272,7 +278,8 @@ def extract_code_from_file(file_path):
 
 def populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten):
 
-    #test github push
+
+    #print(probabilities)
     if flatten:
         #populate the chunk_confidence_yhat
         for i, chunk in enumerate(group_chunks):
@@ -328,8 +335,9 @@ def python_vul_detector(file_to_check):
     
     #models that have the capabilites to detect python code ; shld include the file path of the pretrained model
     #edit this part to include more models
-    models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
-    #models =["xformerBERT_python_model.pth" ]
+    #models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
+    #2 models availble for python but only use cnn cause it has better f1 score than xformer
+    models =["cnn_python_model_new.h5" ]
     #loop thru the model 
     for filepath in models:
         model,tokenizer = load_model(filepath)
@@ -352,9 +360,9 @@ def python_vul_detector(file_to_check):
             probabilities = torch.sigmoid(logits)
             #print("Probabilities:", probabilities)
             # Predicted class (0 or 1) by thresholding at 0.5
-            #predictions = (probabilities > 0.5).long()
+            predictions = (probabilities > 0.26).long()
             #print("Predictions:", predictions)
-            predictions = torch.argmax(probabilities, dim=1)
+            #predictions = torch.argmax(probabilities, dim=1)
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -406,8 +414,9 @@ def php_vul_detector(file_to_check):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
     #models here load
-    models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
-    #models = ["xformerBERT_php_model.pth"]
+    #models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
+    #2 models availble for php but only use xformer cause it has better f1 score than cnn
+    models = ["xformerBERT_php_model.pth"]
     for filepath in models:
         model,tokenizer = load_model(filepath)
         print("Loaded model: ", filepath) 
@@ -511,7 +520,7 @@ def c_vul_detector(file_to_check):
             # Get model predictions
             y_pred = model.predict(X)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.015).astype(int)  # Convert probabilities to class labels
+            y_pred_classes = (y_pred > 0.5).astype(int)  # Convert probabilities to class labels
             #print(y_pred_classes)
             #print('Predicted_Probability', y_pred)               # Tis is my probability
             #print('Predicted_Class', y_pred_classes)             # predicted class
@@ -604,7 +613,7 @@ def process_results(chunk_confidence_yhat, language):
     html_output = "<html><body><h1> Code Security Report</h1>"
 
     for chunk_data in chunk_confidence_yhat:
-        if chunk_data["confidence"] < 0.7:
+        if chunk_data['yhat'] == 1 :
             print(f"Sending Chunk {chunk_data['chunk_id']} to {language} fine-tuned LLM (Flagged by {chunk_data['model']})...")
             llm_result = send_to_llm(chunk_data["chunk"], language)
 
