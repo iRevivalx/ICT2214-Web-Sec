@@ -358,11 +358,8 @@ def python_vul_detector(file_to_check):
             # Apply sigmoid to logits to get probabilities
             logits = outputs.logits
             probabilities = torch.sigmoid(logits)
-            #print("Probabilities:", probabilities)
-            # Predicted class (0 or 1) by thresholding at 0.5
-            predictions = (probabilities > 0.26).long()
-            #print("Predictions:", predictions)
-            #predictions = torch.argmax(probabilities, dim=1)
+            class_1_probs = probabilities[:, 1]
+            predictions = (class_1_probs >= 0.64).long()
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -382,7 +379,7 @@ def python_vul_detector(file_to_check):
             y_pred = model.predict(X)
             #print(y_pred)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype("int32")
+            y_pred_classes = (y_pred > 0.26).astype("int32")
             #print(y_pred_classes)
 
             """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
@@ -436,11 +433,8 @@ def php_vul_detector(file_to_check):
             # Apply sigmoid to logits to get probabilities
             logits = outputs.logits
             probabilities = torch.sigmoid(logits)
-            #print("Probabilities:", probabilities)
-            # Predicted class (0 or 1) by thresholding at 0.5
-            #predictions = (probabilities > 0.5).long()
-            #print("Predictions:", predictions)
-            predictions = torch.argmax(probabilities, dim=1)
+            class_1_probs = probabilities[:, 1]
+            predictions = (class_1_probs >= 0.4).long()
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -460,7 +454,7 @@ def php_vul_detector(file_to_check):
             y_pred = model.predict(X)
             #print(y_pred)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype("int32")
+            y_pred_classes = (y_pred > 0.16).astype("int32")
             #print(y_pred_classes)
 
             """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
