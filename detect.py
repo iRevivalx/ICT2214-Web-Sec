@@ -493,7 +493,7 @@ def c_vul_detector(file_to_check):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
 
-    models = ["cnn_c++.h5"]
+    models = ["cnn_c++_model.h5"]
     for filepath in models:
         model = None
         tokenizer = None
@@ -520,7 +520,7 @@ def c_vul_detector(file_to_check):
             # Get model predictions
             y_pred = model.predict(X)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype(int)  # Convert probabilities to class labels
+            y_pred_classes = (y_pred > 0.18).astype(int)  # Convert probabilities to class labels
             #print(y_pred_classes)
             #print('Predicted_Probability', y_pred)               # Tis is my probability
             #print('Predicted_Class', y_pred_classes)             # predicted class
@@ -551,31 +551,53 @@ def send_to_llm(code_chunk, language):
     full_prompt = f"""
     ### Code Security Audit: {language}
 
-    ** Your Task:**  
+    **Your Task:**  
     You are a cybersecurity expert specializing in {language} vulnerability detection.  
-    Your job is to analyze the following code and return a **detailed security assessment** in **HTML format**.  
+    Carefully analyze the entire code snippet provided below as a complete unit.  
+    Determine **whether** the code contains any security vulnerabilities.  
 
     ---
-    ** Response Format (Strictly HTML)**:
 
+    ### **Response Guidelines:**  
+    - If **no vulnerabilities** are found, return an HTML-formatted security report confirming the code's safety.  
+    - If **vulnerabilities exist**, provide a **detailed security assessment** in HTML format as described below.  
+    - Ensure the response is **unbiased** and based only on the code's actual security status.
+
+    ---
+
+    ### **Response Format (Strictly HTML)**:
+
+    #### **If the code is secure:**  
+    ```html
+    <div class="report">
+        <h2>✅ No Vulnerabilities Found</h2>
+        <p>The provided {language} code has been reviewed, and no security risks were detected.</p>
+
+        <h3>🔍 Explanation of Security:</h3>
+        <p>Explain why the code is considered secure.</p>
+        <p>Highlight any best practices used that contribute to its security.</p>
+    </div>
+    ```
+
+    #### **If the code contains vulnerabilities:**  
     ```html
     <div class="report">
         <h2>🔍 Vulnerability Analysis for {language} Code</h2>
 
         <h3>Vulnerable Lines:</h3>
-        <pre><code>
+        <textarea readonly style="width:100%; height:auto;">
         line X: &lt;code&gt;
         line Y: &lt;code&gt;
-        </code></pre>
+        </textarea>
 
         <h3>🛑 Explanation of Vulnerabilities:</h3>
         <p>Explain why each identified line is vulnerable.</p>
         <p>Describe how an attacker could exploit this vulnerability.</p>
 
         <h3>✅ Secure Code Fix:</h3>
-        <pre><code>{language.lower()}
+        <textarea readonly style="width:100%; height:auto;">{language.lower()}
         // Corrected version of the code with secure coding practices
-        </code></pre>
+        </textarea>
 
         <h3>🔄 Explanation of Fix:</h3>
         <p>Clearly outline what changes were made and how the fix improves security.</p>
@@ -583,8 +605,8 @@ def send_to_llm(code_chunk, language):
     ```
 
     ---
-    **Now analyze the following {language} code and return an HTML-formatted security assessment:**  
 
+    ### **Analyze the following {language} code and return an HTML-formatted security assessment:**  
     ```{language.lower()}
     {code_chunk}
     ```
