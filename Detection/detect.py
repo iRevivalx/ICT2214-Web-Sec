@@ -4,6 +4,8 @@ import re
 import pandas as pd
 from pprint import pprint
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["OPENAI_API_KEY"] = "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"
+print(os.getenv("OPENAI_API_KEY"))
 import tensorflow as tf
 import numpy as np
 import torch
@@ -12,6 +14,7 @@ from tensorflow.keras.layers import TextVectorization
 from keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 from openai import OpenAI
+
 
 client = OpenAI(
     api_key = os.environ.get("OPENAI_API_KEY"),
@@ -239,30 +242,34 @@ def extract_code_from_file(file_path):
         functions = []
         current_function = []
         inside_function = False
-        brace_count = 0  # Track `{}` scope
+        brace_count = 0  
 
-        # Regular expression for function signatures (supports static, extern, etc.)
-        function_pattern = re.compile(r"^\s*(static|extern|inline)?\s*(\w+)\s+(\w+)\s*\(.*\)\s*\{?")
+        # Regex to match function signatures that explicitly start with "void"
+        function_pattern = re.compile(r"^\s*void\s+(\w+)\s*\(.*\)\s*\{?$")
+
         for line in lines:
-            if line:
-                line = line.strip()
-                if not line:  # Skip empty lines
-                    continue  
-                if function_pattern.match(line):  # Function start
-                    if current_function:  # Save the previous function before starting a new one
-                        functions.append("\n".join(current_function))
-                    current_function = [line]  # Start new function
-                    inside_function = True
-                    brace_count = line.count("{") - line.count("}")  # Count braces
+            stripped_line = line.rstrip()
 
-                elif inside_function:
-                    current_function.append(line)
-                    brace_count += line.count("{") - line.count("}")  # Adjust brace count
+            if function_pattern.match(stripped_line):  # Function start detected
+                if current_function:  # Save previous function before starting a new one
+                    functions.append("\n".join(current_function))
 
-                    if brace_count == 0:  # Function ends when braces are balanced
-                        inside_function = False
-                        functions.append("\n".join(current_function))
-                        current_function = []
+                current_function = [stripped_line]  
+                inside_function = True
+                brace_count = stripped_line.count("{") - stripped_line.count("}")  
+
+            elif inside_function:
+                current_function.append(stripped_line)
+                brace_count += stripped_line.count("{") - stripped_line.count("}")  
+
+                if brace_count == 0:  # Function ends when braces are balanced
+                    inside_function = False
+                    functions.append("\n".join(current_function))
+                    current_function = []
+
+        # Ensure the last function is added
+        if current_function:
+            functions.append("\n".join(current_function))
 
         return functions
     else:
@@ -271,7 +278,8 @@ def extract_code_from_file(file_path):
 
 def populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten):
 
-    #test github push
+
+    #print(probabilities)
     if flatten:
         #populate the chunk_confidence_yhat
         for i, chunk in enumerate(group_chunks):
@@ -327,8 +335,9 @@ def python_vul_detector(file_to_check):
     
     #models that have the capabilites to detect python code ; shld include the file path of the pretrained model
     #edit this part to include more models
-    models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
-    #models =["xformerBERT_python_model.pth" ]
+    #models =["xformerBERT_python_model.pth" , "cnn_python_model_new.h5"]
+    #2 models availble for python but only use cnn cause it has better f1 score than xformer
+    models =["cnn_python_model_new.h5" ]
     #loop thru the model 
     for filepath in models:
         model,tokenizer = load_model(filepath)
@@ -349,11 +358,8 @@ def python_vul_detector(file_to_check):
             # Apply sigmoid to logits to get probabilities
             logits = outputs.logits
             probabilities = torch.sigmoid(logits)
-            #print("Probabilities:", probabilities)
-            # Predicted class (0 or 1) by thresholding at 0.5
-            #predictions = (probabilities > 0.5).long()
-            #print("Predictions:", predictions)
-            predictions = torch.argmax(probabilities, dim=1)
+            class_1_probs = probabilities[:, 1]
+            predictions = (class_1_probs >= 0.64).long()
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -373,7 +379,7 @@ def python_vul_detector(file_to_check):
             y_pred = model.predict(X)
             #print(y_pred)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype("int32")
+            y_pred_classes = (y_pred > 0.26).astype("int32")
             #print(y_pred_classes)
 
             """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
@@ -405,8 +411,9 @@ def php_vul_detector(file_to_check):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
     #models here load
-    models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
-    #models = ["xformerBERT_php_model.pth"]
+    #models = ["xformerBERT_php_model.pth","cnn_php_model_new.h5"]
+    #2 models availble for php but only use xformer cause it has better f1 score than cnn
+    models = ["xformerBERT_php_model.pth"]
     for filepath in models:
         model,tokenizer = load_model(filepath)
         print("Loaded model: ", filepath) 
@@ -426,11 +433,8 @@ def php_vul_detector(file_to_check):
             # Apply sigmoid to logits to get probabilities
             logits = outputs.logits
             probabilities = torch.sigmoid(logits)
-            #print("Probabilities:", probabilities)
-            # Predicted class (0 or 1) by thresholding at 0.5
-            #predictions = (probabilities > 0.5).long()
-            #print("Predictions:", predictions)
-            predictions = torch.argmax(probabilities, dim=1)
+            class_1_probs = probabilities[:, 1]
+            predictions = (class_1_probs >= 0.4).long()
 
             #populate chunk_confidence_yhat
             chunk_confidence_yhat = populate_chunk_confidence_yhat(chunk_confidence_yhat,group_chunks,predictions,probabilities,model,filepath,flatten=False)
@@ -450,7 +454,7 @@ def php_vul_detector(file_to_check):
             y_pred = model.predict(X)
             #print(y_pred)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.5).astype("int32")
+            y_pred_classes = (y_pred > 0.16).astype("int32")
             #print(y_pred_classes)
 
             """ print('Predicted_Probability', y_pred.flatten())               # Tis is my probability
@@ -483,7 +487,7 @@ def c_vul_detector(file_to_check):
         print(f"\nChunk {i}:\n{func}\n{'-'*40}")
 
 
-    models = ["cnn_c++.h5"]
+    models = ["cnn_c++_model.h5"]
     for filepath in models:
         model = None
         tokenizer = None
@@ -510,7 +514,7 @@ def c_vul_detector(file_to_check):
             # Get model predictions
             y_pred = model.predict(X)
             # TODO: Finetune to prediction threshold
-            y_pred_classes = (y_pred > 0.015).astype(int)  # Convert probabilities to class labels
+            y_pred_classes = (y_pred > 0.18).astype(int)  # Convert probabilities to class labels
             #print(y_pred_classes)
             #print('Predicted_Probability', y_pred)               # Tis is my probability
             #print('Predicted_Class', y_pred_classes)             # predicted class
@@ -522,49 +526,217 @@ def c_vul_detector(file_to_check):
 
     return  chunk_confidence_yhat
 
-def send_to_llm(code_chunk):
+# Define Fine-Tuned Model IDs (Replace with your actual model IDs)
+fine_tuned_models = {
+    "Python": "ft:gpt-4o-mini-2024-07-18:websec::B1W99cp2",
+    "PHP": "ft:gpt-4o-mini-2024-07-18:websec::B6BkXN2L",
+    "C++": "ft:gpt-4o-mini-2024-07-18:websec::B6B5B4Aw"
+}
+
+def send_to_llm(code_chunk, language):
+    """
+    Send flagged code to the correct fine-tuned LLM model based on language, requesting HTML-formatted output.
+    """
+    if language not in fine_tuned_models:
+        return f"Error: No fine-tuned model available for {language}."
+
+    model_id = fine_tuned_models[language]
+
     full_prompt = f"""
+    ### Code Security Audit: {language}
 
-    You are a security expert analyzing code for vulnerabilities. 
+    **Your Task:**  
+    You are a cybersecurity expert specializing in {language} vulnerability detection.  
+    Carefully analyze the entire code snippet provided below as a complete unit.  
+    Determine **whether** the code contains any security vulnerabilities.  
 
-    Analyze the following code and determine if it is secure. If it is insecure:
-    1. **Highlight the exact vulnerable line(s)** by enclosing them in triple backticks (```) for easy extraction.
-    2. **Provide a clear explanation** of why the highlighted code is vulnerable.
-    3. **Suggest a remediated version of the code**, formatted in a separate code block.
-    4. **Explain the changes** made in the remediation.
+    ---
 
-    ```python
+    ### **Response Guidelines:**  
+    - If **no vulnerabilities** are found, return an HTML-formatted security report confirming the code's safety.  
+    - If **vulnerabilities exist**, provide a **detailed security assessment** in HTML format as described below.  
+    - Ensure the response is **unbiased** and based only on the code's actual security status.
+
+    ---
+
+    ### **Response Format (Strictly HTML)**:
+
+    #### **If the code is secure:**  
+    ```html
+    <div class="report">
+        <h2>✅ No Vulnerabilities Found</h2>
+        <p>The provided {language} code has been reviewed, and no security risks were detected.</p>
+
+        <h3>🔍 Explanation of Security:</h3>
+        <p>Explain why the code is considered secure.</p>
+        <p>Highlight any best practices used that contribute to its security.</p>
+    </div>
+    ```
+
+    #### **If the code contains vulnerabilities:**  
+    ```html
+    <div class="report">
+        <h2>🔍 Vulnerability Analysis for {language} Code</h2>
+
+        <h3>Vulnerable Lines:</h3>
+        <textarea readonly style="width:100%; height:auto;">
+        line X: &lt;code&gt;
+        line Y: &lt;code&gt;
+        </textarea>
+
+        <h3>🛑 Explanation of Vulnerabilities:</h3>
+        <p>Explain why each identified line is vulnerable.</p>
+        <p>Describe how an attacker could exploit this vulnerability.</p>
+
+        <h3>✅ Secure Code Fix:</h3>
+        <textarea readonly style="width:100%; height:auto;">{language.lower()}
+        // Corrected version of the code with secure coding practices
+        </textarea>
+
+        <h3>🔄 Explanation of Fix:</h3>
+        <p>Clearly outline what changes were made and how the fix improves security.</p>
+    </div>
+    ```
+
+    ---
+
+    ### **Analyze the following {language} code and return an HTML-formatted security assessment:**  
+    ```{language.lower()}
     {code_chunk}
     ```
     """
 
     try:
         response = client.chat.completions.create(
-            model="ft:gpt-4o-mini-2024-07-18:websec::B1W99cp2",
+            model=model_id,
             messages=[{"role": "user", "content": full_prompt}]
         )
 
-        # Extract and return response from GPT-4o
-        return response.choices[0].message.content
+        return response.choices[0].message.content  # This will be the HTML output
 
     except client.error.OpenAIError as e:
         return f"Error: {str(e)}"
 
 
-def process_results(chunk_confidence_yhat):
+import re
 
+def process_results(chunk_confidence_yhat, language):
+    """
+    Process flagged chunks and send them to the correct fine-tuned LLM.
+    Generates an HTML report.
+    """
     final_results = []
+    html_output = "<html><body><h1> Code Security Report</h1>"
 
     for chunk_data in chunk_confidence_yhat:
+        if chunk_data['yhat'] == 1 :
+            print(f"Sending Chunk {chunk_data['chunk_id']} to {language} fine-tuned LLM (Flagged by {chunk_data['model']})...")
+            llm_result = send_to_llm(chunk_data["chunk"], language)
 
-        # If confidence is too low, send it to LLM for further analysis
-        if chunk_data["confidence"] < 0.7:
-            print(f"Sending Chunk {chunk_data['chunk_id']} to LLM (Flagged by {chunk_data['model']})...")
-            llm_result = send_to_llm(chunk_data["chunk"])
-            chunk_data["llm_analysis"] = llm_result  # Store LLM result
+            # ✅ Extract only the actual HTML content (remove ```html ... ```)
+            extracted_html = re.sub(r"```html\n(.*?)\n```", r"\1", llm_result, flags=re.DOTALL)
+
+            chunk_data["llm_analysis"] = extracted_html  # Store cleaned HTML
             final_results.append(chunk_data)
 
+            # Append extracted HTML output (which is already formatted)
+            html_output += f"<h2>Chunk {chunk_data['chunk_id']} (Flagged by {chunk_data['model']})</h2>"
+            html_output += extracted_html  # Insert clean HTML
+
+    html_output += "</body></html>"
+
+    # Save HTML report
+    html_filename = f"security_report_{language.lower()}.html"
+    with open(html_filename, "w", encoding="utf-8") as file:
+        file.write(html_output)
+
+    print(f"✅ Security report saved as {html_filename}")
     return final_results if final_results else None
+
+def generate_html_report(report_data, filename="vulnerability_report.html"):
+    """
+    Generate an HTML report using the LLM's pre-formatted HTML output.
+    """
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vulnerability Report</title>
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f4f4f4;
+                color: #333;
+            }
+            .container {
+                width: 90%;
+                max-width: 1000px;
+                margin: 20px auto;
+                padding: 20px;
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+            h1 {
+                background: #d9534f;
+                color: white;
+                padding: 15px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+                margin: -20px -20px 20px -20px;
+            }
+            .report {
+                padding: 15px;
+                margin-bottom: 20px;
+                background: #fff3f3;
+                border-left: 5px solid #d9534f;
+                border-radius: 5px;
+            }
+            .footer {
+                text-align: center;
+                margin-top: 20px;
+                padding: 10px;
+                background: #333;
+                color: white;
+                font-size: 14px;
+                border-radius: 0 0 8px 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 Code Vulnerability Analysis Report</h1>
+    """
+
+    for item in report_data:
+        flagged_by = item.get('model', 'Unknown Model')
+        llm_analysis = item.get("llm_analysis", "⚠ No analysis received from LLM.")
+
+        html_content += f"""
+        <div class="report">
+            <h2>🆔 Chunk ID: {item['chunk_id']} (Flagged by {flagged_by})</h2>
+            {llm_analysis}  <!-- The LLM's generated HTML is directly inserted -->
+        </div>
+        """
+
+    html_content += """
+            <div class="footer">
+                Generated by SafeScan | Secure Coding Matters 🚀
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+    print(f"\n✅ HTML Report Generated: {filename}")
+    return filename
 
 
 def main():
@@ -580,6 +752,9 @@ def main():
     if args.help:
         print_banner()
     elif args.type and args.file:
+        language_map = {"cpp": "C++", "python": "Python", "php": "PHP"}
+        language = language_map.get(args.type)
+
         #check if the file match the type of the 
         if args.type == "cpp" and (args.file.endswith(".c") or args.file.endswith(".cpp")):
             print(f"Submitting C code from file: {args.file}")
@@ -606,9 +781,10 @@ def main():
                 print(f"Model: {chunk_data['model']}")
                 print("-----")
             
-            # send low-confidence results to the LLM
-            print("\nProcessing low-confidence predictions with LLM...")
-            final_results = process_results(chunk_confidence_yhat)
+            # Send low-confidence results to the correct LLM model
+            print(f"\nProcessing low-confidence predictions with {language} fine-tuned LLM...")
+            final_results = process_results(chunk_confidence_yhat, language)
+
 
             # print LLM results
             print("\nLLM Analysis Results")
@@ -617,6 +793,19 @@ def main():
                 print(f"Flagged by: {chunk_data['model']}")  # Print which model flagged it
                 print(f"LLM Analysis: {chunk_data['llm_analysis']}")
                 print("-----")
+        
+        if final_results:
+            print("\nLLM Analysis Results")
+            for chunk_data in final_results:
+                print(f"\nChunk ID: {chunk_data['chunk_id']}")
+                print(f"Flagged by: {chunk_data['model']}")  # Print which model flagged it
+
+                # ✅ Use .get() to avoid KeyError
+                analysis = chunk_data.get("llm_analysis", "⚠ No analysis received from LLM.")
+                print(f"LLM Analysis: {analysis}")
+                print("-----")
+
+
     else:
         print("Invalid usage. Use -help for more information.")
 

@@ -1,122 +1,189 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PHP Vulnerability Example</title>
-</head>
-<body>
-
-    <h1>PHP Vulnerability Example</h1>
-
-    <h2>Vulnerable Code 1: SQL Injection</h2>
-    <form method="POST">
-        <label for="username">Username:</label>
-        <input type="text" name="username" id="username" required>
-        <label for="password">Password:</label>
-        <input type="password" name="password" id="password" required>
-        <button type="submit">Login</button>
-    </form>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $username = $_POST['username'];
-        $password = $_POST['password'];
-
-        // Vulnerable SQL query (SQL Injection)
-        $conn = new mysqli("localhost", "root", "", "testdb");
-
-        if ($conn->connect_error) {
-            die("Connection failed: " . $conn->connect_error);
-        }
-
-        $sql = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
-        $result = $conn->query($sql);
-
-        if ($result->num_rows > 0) {
-            echo "<p>Login successful</p>";
-        } else {
-            echo "<p>Invalid username or password</p>";
-        }
-
-        $conn->close();
-    }
-    ?>
-
-<h2>Vulnerable Code 2: Cross-Site Scripting (XSS)</h2>
-    <form method="POST">
-        <label for="comment">Leave a comment:</label>
-        <textarea name="comment" id="comment" required></textarea>
-        <button type="submit">Submit</button>
-    </form>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
-        $comment = $_POST['comment'];
-
-        // Vulnerable XSS: Directly echoing user input
-        echo "<h3>Your Comment:</h3>";
-        echo "<p>$comment</p>";  // This is vulnerable to XSS if a user enters a script tag
-    }
-    ?>
-
+<?php
+// 1. Vulnerable: Insecure Direct Object Reference (IDOR)
+function getUserDataVulnerable($userId, $conn) 
+{
+    $query = "SELECT * FROM users WHERE id=$userId"; // No authorization check!
+    $result = mysqli_query($conn, $query);
     
-
-    <h2>Non-Vulnerable Code 1: Prepared Statements</h2>
-    <form method="POST">
-        <label for="username2">Username:</label>
-        <input type="text" name="username2" id="username2" required>
-        <label for="password2">Password:</label>
-        <input type="password" name="password2" id="password2" required>
-        <button type="submit">Login</button>
-    </form>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username2']) && isset($_POST['password2'])) {
-        $username2 = $_POST['username2'];
-        $password2 = $_POST['password2'];
-
-        // Non-vulnerable SQL query using prepared statements
-        $conn = new mysqli("localhost", "root", "", "testdb");
-
-        if ($conn->connect_error) {
-            die("Connection failed: " . $conn->connect_error);
-        }
-
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? AND password = ?");
-        $stmt->bind_param("ss", $username2, $password2); // "ss" denotes the type of the parameters (string, string)
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
-            echo "<p>Login successful</p>";
-        } else {
-            echo "<p>Invalid username or password</p>";
-        }
-
-        $stmt->close();
-        $conn->close();
-    }
-    ?>
-
+    return mysqli_fetch_assoc($result);
+}
+?>
+<?php
+// 2. Vulnerable: SQL Injection
+function searchUserVulnerable($username, $conn) 
+{
+    $query = "SELECT * FROM users WHERE username = '$username'"; // Vulnerable to SQL Injection!
+    $result = mysqli_query($conn, $query);
     
-
-    <h2>Non-Vulnerable Code 2: Output Encoding</h2>
-    <form method="POST">
-        <label for="comment2">Leave a comment:</label>
-        <textarea name="comment2" id="comment2" required></textarea>
-        <button type="submit">Submit</button>
-    </form>
-
-    <?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment2'])) {
-        $comment2 = $_POST['comment2'];
-
-        // Non-vulnerable XSS: Proper output encoding
-        echo "<h3>Your Comment:</h3>";
-        echo "<p>" . htmlspecialchars($comment2, ENT_QUOTES, 'UTF-8') . "</p>";  // Safe output encoding
+    return mysqli_fetch_assoc($result);
+}
+?>
+<?php
+// 3. Vulnerable: Cross-Site Scripting (XSS)
+function displayCommentVulnerable($comment) 
+{
+    echo "<p>Comment: $comment</p>"; // Outputting user input directly
+}
+?>
+<?php
+// 4. Vulnerable: Cross-Site Request Forgery (CSRF)
+function updateEmailVulnerable($userId, $newEmail, $conn) 
+{
+    $query = "UPDATE users SET email='$newEmail' WHERE id=$userId"; // No CSRF protection!
+    mysqli_query($conn, $query);
+}
+?>
+<?php
+// 5. Vulnerable: Insecure Password Storage
+function storePasswordVulnerable($password, $conn) 
+{
+    $query = "INSERT INTO users (password) VALUES ('$password')"; // Storing passwords in plaintext!
+    mysqli_query($conn, $query);
+}
+?>
+<?php
+// 6. Vulnerable: Unvalidated File Upload
+function uploadFileVulnerable($file) 
+{
+    move_uploaded_file($file['tmp_name'], "uploads/" . $file['name']); // No file type validation!
+}
+?>
+<?php
+// 7. Vulnerable: Security Misconfiguration (Exposing PHP Info)
+function showPhpInfoVulnerable() 
+{
+    phpinfo(); // Exposes sensitive system details
+}
+?>
+<?php
+// 8. Vulnerable: Insecure Deserialization
+function deserializeDataVulnerable($data) 
+{
+    return unserialize($data); // Allows malicious object injection!
+}
+?>
+<?php
+// 9. Vulnerable: Using Hardcoded API Keys
+function connectToApiVulnerable() 
+{
+    $apiKey = "1234567890abcdef"; // Hardcoded sensitive key!
+    return "https://api.example.com/data?key=" . $apiKey;
+}
+?>
+<?php
+// 10. Vulnerable: Server-Side Request Forgery (SSRF)
+function fetchUrlVulnerable($url) 
+{
+    return file_get_contents($url); // No validation of external URLs!
+}
+?>
+<?php
+// 11. Secure: Proper Access Control for IDOR
+function getUserDataSafe($userId, $conn, $currentUser) 
+{
+    if ($userId !== $currentUser) {
+        die("Unauthorized access!"); // Prevents unauthorized access
     }
-    ?>
 
-</body>
-</html>
+    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    
+    return $stmt->get_result()->fetch_assoc();
+}
+?>
+<?php
+// 12. Secure: Using Parameterized Queries (Prevent SQL Injection)
+function searchUserSafe($username, $conn) 
+{
+    $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    
+    return $stmt->get_result()->fetch_assoc();
+}
+?>
+<?php
+// 13. Secure: Escaping Output to Prevent XSS
+function displayCommentSafe($comment) 
+{
+    echo "<p>Comment: " . htmlspecialchars($comment, ENT_QUOTES, 'UTF-8') . "</p>";
+}
+?>
+<?php
+// 14. Secure: CSRF Protection with Token
+function updateEmailSafe($userId, $newEmail, $conn, $csrfToken, $sessionToken) 
+{
+    if ($csrfToken !== $sessionToken) {
+        die("CSRF detected!");
+    }
+
+    $stmt = $conn->prepare("UPDATE users SET email = ? WHERE id = ?");
+    $stmt->bind_param("si", $newEmail, $userId);
+    $stmt->execute();
+}
+?>
+<?php
+// 15. Secure: Hashing Passwords with Bcrypt
+function storePasswordSafe($password, $conn) 
+{
+    $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+    $stmt = $conn->prepare("INSERT INTO users (password) VALUES (?)");
+    $stmt->bind_param("s", $hashedPassword);
+    $stmt->execute();
+}
+?>
+<?php
+// 16. Secure: Validating File Uploads
+function uploadFileSafe($file) 
+{
+    $allowedTypes = ["image/png", "image/jpeg"];
+    
+    if (!in_array($file['type'], $allowedTypes)) {
+        die("Invalid file type!");
+    }
+
+    move_uploaded_file($file['tmp_name'], "uploads/" . basename($file['name']));
+}
+?>
+<?php
+// 17. Secure: Restricting PHP Info Access
+function showPhpInfoSafe() 
+{
+    if ($_SERVER['REMOTE_ADDR'] === '127.0.0.1') {
+        phpinfo(); // Show info only to local admin
+    } else {
+        die("Access denied.");
+    }
+}
+?>
+<?php
+// 18. Secure: Using JSON for Safe Serialization
+function deserializeDataSafe($data) 
+{
+    return json_decode($data, true); // Prevents object injection attacks
+}
+?>
+<?php
+// 19. Secure: Using Environment Variables for API Keys
+function connectToApiSafe() 
+{
+    $apiKey = getenv('API_KEY'); // Fetch from environment variables
+    return "https://api.example.com/data?key=" . $apiKey;
+}
+?>
+<?php
+// 20. Secure: Validating External URLs to Prevent SSRF
+function fetchUrlSafe($url) 
+{
+    $allowedDomains = ["example.com", "trusted.com"];
+
+    $parsedUrl = parse_url($url);
+    if (!in_array($parsedUrl['host'], $allowedDomains)) {
+        die("Unauthorized URL request!");
+    }
+
+    return file_get_contents($url);
+}
+?>
