@@ -3,4 +3,4 @@ Due to GitHub's file size limitations, we are unable to upload the models direct
 
 ## Models Google Drive Link
 
-[Datasets](https://drive.google.com/drive/u/0/folders/18mMu1oOSJ5BzNsMYqEVWh5ip2h-rl630)
+[Models](https://drive.google.com/drive/u/0/folders/18mMu1oOSJ5BzNsMYqEVWh5ip2h-rl630)
