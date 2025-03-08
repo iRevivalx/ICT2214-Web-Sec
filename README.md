@@ -77,20 +77,20 @@ The model is trained on a dataset containing vulnerable and non-vulnerable C++, 
 
 ## Details of the Transformer Model
 ### Purpose 
-Contextual understanding of web traffic for advanced threat detection
+- Contextual understanding of web traffic for advanced threat detection
 
 ### Input
-Sequences of tokens from HTTP requests/responses
+- Sequences of tokens from HTTP requests/responses
 
 ### Output
-Classification or regression outputs for vulnerability detection.
+- Classification or regression outputs for vulnerability detection.
 
 ## Details of the LLM Model 
 ### Purpose 
-Analyzes textual data in web traffic for malicious intent
+- Analyzes textual data in web traffic for malicious intent
 
 ### Input
-Raw HTTP request/response headers and body
+- Raw HTTP request/response headers and body
 
 ### Output 
- Probability scores for different types of vulnerabilities
+- Probability scores for different types of vulnerabilities
