@@ -10,7 +10,7 @@ We use a Convolutional Neural Network (CNN) to detect unsafe coding practices fr
 If the CNN predicts vulnerabilities with low confidence, a Large Language Model (LLM) will validate and confirm the findings.
 The model is trained on a dataset containing vulnerable and non-vulnerable C++, Python and PHP code.
 
-## Details of the Model (C++)
+## Details of the CNN Model (C++)
 ### Deep Learning Model
 - A 1D CNN-based classifier to analyze C++ code snippets
 - Uses word embeddings and convolutional layers to detect patterns in vulnerable code
@@ -75,5 +75,22 @@ The model is trained on a dataset containing vulnerable and non-vulnerable C++, 
 - Generates training and validation accuracy plots
 - Saves trained model for deployment
 
-## Submission Deadline
-9 March 2025 Sunday 2359 hours
+## Details of the Transformer Model
+### Purpose 
+Contextual understanding of web traffic for advanced threat detection
+
+### Input
+Sequences of tokens from HTTP requests/responses
+
+### Output
+Classification or regression outputs for vulnerability detection.
+
+## Details of the LLM Model 
+### Purpose 
+Analyzes textual data in web traffic for malicious intent
+
+### Input
+Raw HTTP request/response headers and body
+
+### Output 
+ Probability scores for different types of vulnerabilities
