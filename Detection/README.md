@@ -18,6 +18,11 @@ This directory contains scripts and test cases related to the detection function
 
 ## Usage
 
+Run the `requirements.txt` to install the required dependencies to run the script:
+
+```bash
+pip install -r requirements.txt
+
 Run the `detect.py` script to perform security analysis:
 
 ```bash
