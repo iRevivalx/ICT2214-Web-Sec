@@ -6,7 +6,7 @@ This project aims to develop a machine learning-powered web security scanner for
 - Outdated dependencies and their associated vulnerabilities
 - Detection of vulnerabilities related to OWASP Top 10
 
-We use a Convolutional Neural Network (CNN) to detect unsafe coding practices from code snippets.
+We use a Convolutional Neural Network (CNN)/Transformer model to detect unsafe coding practices from code snippets.
 If the CNN predicts vulnerabilities with low confidence, a Large Language Model (LLM) will validate and confirm the findings.
 The model is trained on a dataset containing vulnerable and non-vulnerable C++, Python and PHP code.
 
