@@ -12,9 +12,9 @@ This directory contains scripts and test cases related to the detection function
 - **`test.php`**: Contains test cases for verifying the functionality of `detect.py` in PHP.
 - **`test.py`**: Contains test cases for verifying the functionality of `detect.py` in Python.
 
-### Additional Files
-- **`input_php_context.php`**: May contain PHP code or configurations related to testing.
-- **`security_report_php.html`**: Possibly an output or report generated for PHP security detection.
+### Files Generated from Demo
+- **`input_php_context.php`**: Some PHP code or configurations used for demo.
+- **`security_report_php.html`**: The report generated for PHP security detection for demo.
 
 ## Usage
 
